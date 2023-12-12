@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8" />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .dep:hover {
+            fill: #f00;
+        }
+
+        .hidden {
+            display: none;
+        }
+        div.tooltip {
+            color: #222;
+            background-color: #ffacac;
+            padding: .5em;
+            text-shadow: #f5f5f5 0 1px 0;
+            border-radius: 2px;
+            opacity: 0.9;
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <input id="slider" type="range" value="0" min="0" max="177" step="1" /><br/>
+        <span id="day">0</span>
+    </div>
+    <script>
+        var width = 700,
+            height = 580;
+
+        var svg = d3
+            .select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+        
+        var tooltip = d3.select('body').append('div')
+                .attr('class', 'hidden tooltip');
+
+        // On rajoute un groupe englobant toute la visualisation pour plus tard
+        var g = svg.append("g");
+
+        // Autres projections : geoMercator, geoNaturalEarth1, ...
+        // https://github.com/d3/d3-geo/blob/master/README.md
+        var projection = d3.geoConicConformal().center([2.454071, 46.279229]).scale(2800);
+
+        // On definie une echelle de couleur
+        // via https://observablehq.com/@d3/color-schemes?collection=@d3/d3-scale-chromatic
+        var color = d3
+            .scaleQuantize()
+            .range(["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"]);
+
+        var path = d3.geoPath().projection(projection);
+
+        // Chargement des donnees
+        var jourChoisi = "2021-09-12" // pour demarrer on code en dur un jour a afficher
+
+        function drawmap(json, jourChoisi) {
+            
+            d3.select('#day').html(json.features[0].properties.value[jourChoisi].jour);
+            //On dessine les departements avec la couleur correspondante
+            svg.selectAll("path")
+                .data(json.features)
+                .join("path")
+                .attr("d", path)
+                .attr("class", "dep")
+                .on('mousemove', function(e, d) {
+              			// on recupere la position de la souris, 
+              			// e est l'object event d
+                    var mousePosition = [e.x, e.y];
+
+			              // on affiche le toolip
+                    tooltip.classed('hidden', false)
+  		                  // on positionne le tooltip en fonction 
+	    	                // de la position de la souris
+                        .attr('style', 'left:' + (mousePosition[0] + 15) +
+                                'px; top:' + (mousePosition[1] - 35) + 'px')
+                    		// on recupere le nom de l'etat 
+                        
+                        .html(d.properties.nom + " (" + d.properties.value[jourChoisi].hosp+ ")");
+                })
+                .on('mouseout', function() {
+			              // on cache le toolip
+                    tooltip.classed('hidden', true);
+                })
+
+
+                .style("fill", function(d) {
+                    var value = d.properties.value[jourChoisi].hosp;
+                    
+                    if (value) {
+                        return color(value);
+                    } else {
+                    // si pas de valeur alors en gris
+                    return "#ccc";
+                    }
+                });
+        }
+
+        d3.csv("covid.csv").then(function(data) {
+            // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
+            var cleanData = data.filter( function(row) {
+                return row.sexe == 0;
+            } ); 
+            console.log(cleanData)
+
+            color.domain([
+                d3.min(cleanData, function (d) {
+                    return d.hosp;
+                }),
+                d3.max(cleanData, function (d) {
+                    return d.hosp;
+                })
+            ]);
+
+            var json = d3.json("departements-version-simplifiee.geojson").then(function(json) {
+                //On fusionne les donnees avec le GeoJSON des departements
+
+                //On parcours les departements du GeoJSON un par un
+                for (var j = 0; j < json.features.length; j++) {
+                    var departement = json.features[j].properties // TODO
+
+                    // find permet d'eviter de faire une boucle sur toutes les donnees 
+                    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find#find_an_object_in_an_array_by_one_of_its_properties
+                    var jourDepChoisi = cleanData.filter(function(row) {
+                        return row.dep===departement.code; // find renvoie la ligne du tableau si la fonction qu'on lui passe en argument renvoie True.    
+                    })
+                    json.features[j].properties.value = jourDepChoisi
+                }   
+                
+                d3.select("#slider").on("input", function() {
+                    drawmap(json, this.value);
+                });
+                drawmap(json, document.getElementById("slider").value);
+            });
+
+        });
+
+
+        // var slider=document.getElementById("slider");
+        
+
+
+        // var output=document.getElementById("day");
+        // slider.addEventListener("input", function() {
+        //     output.innerHTML=this.value;
+        // })
+    </script>
+</body>
