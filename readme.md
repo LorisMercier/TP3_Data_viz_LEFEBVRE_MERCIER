@@ -7,4 +7,4 @@ MERCIER Loris p1906860
 Ouvrir le fichier `index.html` dans un navigateur web pour lancer l'application.
 
 ### Démonstration
-<video src='./Video_Demo.mp4' width=300/>
+![Démonstration](./Demo.gif)
